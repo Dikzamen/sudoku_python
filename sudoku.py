@@ -5,10 +5,32 @@ CHOSEN_COLOR = (204, 204, 204)
 CELL_COLOR = (255, 255, 255)
 NUMBERS_COLOR = (0, 0, 0)
 
-
 def draw_rect(surface, fill_color, outline_color, rect, border=1):
     surface.fill(outline_color, rect)
     surface.fill(fill_color, rect.inflate(-border * 2, -border * 2))
+
+
+def animate(function):
+    def wrapper(*args, **kwargs):
+        result = function(*args, **kwargs)
+        self = args[0]
+        if self.gui_active:
+            number = args[3]
+            i = args[1]
+            j = args[2]
+            self.gui_board[i][j][-1] = number
+            if number is not None:
+                self.gui_board[i][j][-1] = str(number)
+            if self.visualisation:
+                self.update_screen_((i, j))
+                element = self.gui_board[i][j]
+                pair = element[0]
+                rect = pair[0]
+                pygame.display.update(rect)
+            pygame.event.pump()
+        return result
+
+    return wrapper
 
 
 def init_cells(board, window_width, window_height, block_size, margin):
@@ -39,7 +61,7 @@ class Board:
             num = item[1]
 
             draw_rect(self.SCREEN, CELL_COLOR, EDGES_COLOR, rect)
-            if num is not None:
+            if num:
                 self.SCREEN.blit(self.numbers_rendered[int(num) - 1],
                                  (rect[0] + rect[2] // 2 - text_width / 2, rect[1] + rect[3] // 2 - text_height / 2))
             return
@@ -55,10 +77,11 @@ class Board:
                                       rect[1] + rect[3] // 2 - text_height / 2))
 
     def init_gui(self, window_width, window_height, block_size, margin):
+        self.gui_active = True
         self.SCREEN = pygame.display.set_mode((window_width, window_height))
         self.SCREEN.fill(CELL_COLOR)
         self.gui_board = init_cells(self.board, window_width, window_height, block_size, margin)
-        self.font = pygame.font.SysFont(None, int(block_size // 1.5))
+        self.font = pygame.font.SysFont('Calibri', int(block_size // 1.5))
         self.text_width, self.text_height = self.font.size('1')
         self.prev_chosen = ()
         self.numbers_rendered = [self.font.render(str(num), True, NUMBERS_COLOR) for num in range(1, 10)]
@@ -66,13 +89,15 @@ class Board:
 
     def __init__(self):
         self.board = []
-        for k in range(9):
+        self.visualisation = False
+        for _ in range(9):
             self.board.append([None, None, None, None, None, None, None, None, None])
         self.SCREEN = None
         self.gui_board = None
         self.font = None
         self.text_width = self.text_height = None
         self.prev_chosen = ()
+        self.gui_active = False
         self.numbers_rendered = None
 
     @classmethod
@@ -100,7 +125,15 @@ class Board:
                 result += '\n'
         return result
 
+    def __repr__(self):
+        return self.__str__()
+
+    def __setitem__(self, item, value):
+        print('setting item', item, value)
+        # return self.board[item]
+
     def __getitem__(self, item):
+        print('getting item', item)
         return self.board[item]
 
     def numbers_in_row(self, i):
@@ -134,6 +167,10 @@ class Board:
             return self.next_cell(indexes[0], indexes[1])
         return indexes
 
+    @animate
+    def set_value_cell(self, i, j, number):
+        self.board[i][j] = number
+
     def solve_for_cell(self, i, j):
         if self.board[i][j] is not None:
             next_cell = self.next_cell(i, j)
@@ -146,15 +183,7 @@ class Board:
         if not numbers_for_cell:
             return False
         for number in numbers_for_cell:
-            self.board[i][j] = number
-            self.gui_board[i][j][-1] = str(number)
-            if self.visualisation:
-                self.update_screen_((i, j))
-                element = self.gui_board[i][j]
-                pair = element[0]
-                rect = pair[0]
-                pygame.display.update(rect)
-            pygame.event.pump()
+            self.set_value_cell(i, j, number)
             next_cell = self.next_cell(i, j)
             if next_cell is None:
                 return True
@@ -162,17 +191,22 @@ class Board:
             if res:
                 return True
             if not res:
-                self.board[i][j] = None
-                self.gui_board[i][j][-1] = None
-                if self.visualisation:
-                    self.update_screen_((i, j))
-                    element = self.gui_board[i][j]
-                    pair = element[0]
-                    rect = pair[0]
-                    pygame.display.update(rect)
-                pygame.event.pump()
+                self.set_value_cell(i, j, None)
         return False
 
     def solve(self, visualisation):
         self.visualisation = visualisation
         self.solve_for_cell(0, 0)
+
+
+if __name__ == '__main__':
+    ex = [[9, 5, None, None, 1, None, 2, None, None], [None, 8, None, None, None, 7, None, 9, None],
+          [6, None, 2, None, None, None, 5, None, None], [None, 7, None, None, 6, None, None, None, None],
+          [None, None, None, 9, None, 1, None, None, None], [None, None, None, None, 2, None, None, 4, None],
+          [None, None, 5, None, None, None, 6, None, 3], [None, 9, None, 4, None, None, None, 7, None],
+          [None, None, 6, None, None, None, None, None, None]]
+
+    board = Board.constructor(ex)
+    print(board)
+    board.solve(False)
+    print(board)
